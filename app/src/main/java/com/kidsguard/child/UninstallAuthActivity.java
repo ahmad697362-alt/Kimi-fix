@@ -18,6 +18,7 @@ import android.widget.Toast;
 public class UninstallAuthActivity extends Activity {
 
     public static boolean isUnlocked = false;
+    public static boolean isCancelled = false;
     public static long unlockedTime = 0;
 
     @Override
@@ -69,6 +70,7 @@ public class UninstallAuthActivity extends Activity {
                         || entered.equals(stopPass) || entered.equals(nightPass)
                         || entered.equals(uninstallCode)) {
                     isUnlocked = true;
+                    isCancelled = false;
                     unlockedTime = System.currentTimeMillis();
                     Toast.makeText(UninstallAuthActivity.this,
                             "Unlocked for 5 minutes", Toast.LENGTH_LONG).show();
@@ -95,6 +97,7 @@ public class UninstallAuthActivity extends Activity {
             @Override
             public void onClick(View v) {
                 isUnlocked = false;
+                isCancelled = true;
                 Toast.makeText(UninstallAuthActivity.this, "Authentication cancelled", Toast.LENGTH_SHORT).show();
                 finish();
             }
@@ -107,6 +110,7 @@ public class UninstallAuthActivity extends Activity {
     @Override
     public void onBackPressed() {
         isUnlocked = false;
+        isCancelled = true;
         Toast.makeText(this, "Authentication cancelled", Toast.LENGTH_SHORT).show();
         super.onBackPressed();
     }

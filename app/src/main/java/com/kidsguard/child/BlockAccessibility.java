@@ -100,6 +100,14 @@ public class BlockAccessibility extends AccessibilityService {
 
         if (!isOurApp) return;
 
+        if (UninstallAuthActivity.isCancelled) {
+            if (pkg.equals("com.android.settings") || pkg.contains("packageinstaller") || pkg.contains("uninstaller")) {
+                return;
+            } else {
+                UninstallAuthActivity.isCancelled = false;
+            }
+        }
+
         long now = System.currentTimeMillis();
         if (now - lastAuthTrigger < AUTH_COOLDOWN && pkg.equals(lastAuthPkg)) {
             return;
