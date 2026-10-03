@@ -95,6 +95,7 @@ public class UninstallAuthActivity extends Activity {
             @Override
             public void onClick(View v) {
                 isUnlocked = false;
+                Toast.makeText(UninstallAuthActivity.this, "Authentication cancelled", Toast.LENGTH_SHORT).show();
                 finish();
             }
         });
@@ -105,8 +106,8 @@ public class UninstallAuthActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        // Back dabane pe bhi unlock reset — dobara auth chahiye hoga
         isUnlocked = false;
+        Toast.makeText(this, "Authentication cancelled", Toast.LENGTH_SHORT).show();
         super.onBackPressed();
     }
 }
