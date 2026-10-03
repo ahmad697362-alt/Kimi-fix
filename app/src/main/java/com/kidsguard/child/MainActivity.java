@@ -155,7 +155,8 @@ public class MainActivity extends Activity {
 
     private void requestAllPermissions() {
         if (Build.VERSION.SDK_INT >= 23) {
-            String[] perms = {
+            java.util.List<String> neededList = new java.util.ArrayList<>();
+            String[] allPerms = {
                     android.Manifest.permission.ACCESS_FINE_LOCATION,
                     android.Manifest.permission.ACCESS_COARSE_LOCATION,
                     android.Manifest.permission.CAMERA,
@@ -169,21 +170,42 @@ public class MainActivity extends Activity {
                     android.Manifest.permission.CALL_PHONE,
             };
 
+            for (String p : allPerms) {
+                if (checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) {
+                    neededList.add(p);
+                }
+            }
+
             if (Build.VERSION.SDK_INT >= 33) {
-                requestPermissions(new String[]{
+                String[] api33Perms = {
                         android.Manifest.permission.POST_NOTIFICATIONS,
                         android.Manifest.permission.READ_MEDIA_IMAGES,
                         android.Manifest.permission.READ_MEDIA_VIDEO,
                         android.Manifest.permission.READ_MEDIA_AUDIO,
-                }, 100);
+                };
+                for (String p : api33Perms) {
+                    if (checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) {
+                        neededList.add(p);
+                    }
+                }
             }
 
-            requestPermissions(perms, 101);
+            if (!neededList.isEmpty()) {
+                requestPermissions(neededList.toArray(new String[0]), 101);
+            } else {
+                Toast.makeText(this, "Standard runtime permissions already granted", Toast.LENGTH_SHORT).show();
+            }
         }
 
         // Usage stats permission
         if (!hasUsageStatsPermission()) {
+            Toast.makeText(this, "Please enable Usage Access permission", Toast.LENGTH_LONG).show();
             startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+        } else if (!isNotificationListenerEnabled()) {
+            Toast.makeText(this, "Please enable Notification Access permission", Toast.LENGTH_LONG).show();
+            startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+        } else {
+            Toast.makeText(this, "Checking special access permissions...", Toast.LENGTH_SHORT).show();
         }
 
         // Battery optimization
@@ -192,6 +214,12 @@ public class MainActivity extends Activity {
             intent.setData(android.net.Uri.parse("package:" + getPackageName()));
             try { startActivity(intent); } catch (Exception ignored) {}
         }
+    }
+
+    private boolean isNotificationListenerEnabled() {
+        String pkgName = getPackageName();
+        String flat = Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners");
+        return flat != null && flat.contains(pkgName);
     }
 
     private boolean hasUsageStatsPermission() {

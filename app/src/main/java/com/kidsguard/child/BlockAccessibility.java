@@ -113,8 +113,6 @@ public class BlockAccessibility extends AccessibilityService {
         lastAuthTrigger = now;
         lastAuthPkg = pkg;
 
-        performGlobalAction(GLOBAL_ACTION_HOME);
-
         Intent auth = new Intent(this, UninstallAuthActivity.class);
         auth.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(auth);
