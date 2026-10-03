@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#0D0D1A">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="KidsGuard Child"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:gravity="center"
+            android:paddingBottom="24dp"/>
+
+        <TextView
+            android:id="@+id/tvDeviceId"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Device Code: ------"
+            android:textSize="18sp"
+            android:textColor="#00FF88"
+            android:gravity="center"
+            android:paddingBottom="24dp"/>
+
+        <Button
+            android:id="@+id/btnStartService"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Start Monitoring"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnStopService"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Stop Monitoring"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnPermissions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Grant All Permissions"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnAccessibility"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable Accessibility"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnDeviceAdmin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable Device Admin"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnNotifAccess"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable Notification Access"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnHideApp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Hide App Icon"
+            android:layout_marginBottom="8dp"/>
+
+    </LinearLayout>
+</ScrollView>

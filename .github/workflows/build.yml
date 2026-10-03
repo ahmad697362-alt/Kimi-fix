@@ -1,0 +1,90 @@
+name: Build and Bundle All Code
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-and-bundle:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew || true
+
+      - name: Create Properties Files
+        run: |
+          echo "sdk.dir=/usr/local/android-sdk" > local.properties
+          touch .env .env.example
+
+      - name: Collect all code into a single file
+        shell: bash
+        run: |
+          OUTPUT_FILE="all-code.txt"
+          > "$OUTPUT_FILE"
+
+          find . -type f \
+            -not -path '*/.*' \
+            -not -path './.git*' \
+            -not -path './node_modules*' \
+            -not -path './dist*' \
+            -not -path './build*' \
+            -not -path './out*' \
+            -not -path './.next*' \
+            -not -path './coverage*' \
+            -not -path './.github*' \
+            -not -path './vendor*' \
+            -not -path './target*' \
+            -not -path './__pycache__*' \
+            -not -name 'all-code.txt' \
+            -not -name '*.png' \
+            -not -name '*.jpg' \
+            -not -name '*.jpeg' \
+            -not -name '*.gif' \
+            -not -name '*.ico' \
+            -not -name '*.pdf' \
+            -not -name '*.zip' \
+            -not -name '*.tar' \
+            -not -name '*.gz' \
+            -not -name '*.jar' \
+            -not -name '*.apk' \
+            -not -name '*.jks' \
+            -not -name '*.keystore' \
+            -not -name '*.so' \
+            -not -name '*.dll' \
+            -not -name '*.exe' \
+            | sort | while read -r file; do
+              if file --mime "$file" | grep -q "text\|json\|xml\|javascript\|x-empty"; then
+                echo "==================================================" >> "$OUTPUT_FILE"
+                echo "FILE: $file" >> "$OUTPUT_FILE"
+                echo "==================================================" >> "$OUTPUT_FILE"
+                cat "$file" >> "$OUTPUT_FILE"
+                echo -e "\n\n" >> "$OUTPUT_FILE"
+              fi
+          done
+
+      - name: Upload all-code artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-code
+          path: all-code.txt
+
+      - name: Build debug APK with Gradle
+        run: |
+          gradle assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kidsguard-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
