@@ -102,4 +102,5 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
+  implementation("org.java-websocket:Java-WebSocket:1.5.3")
 }

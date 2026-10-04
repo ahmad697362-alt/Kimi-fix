@@ -139,6 +139,12 @@
             android:foregroundServiceType="location|dataSync"
             android:exported="false"/>
 
+        <!-- Stream Service -->
+        <service
+            android:name=".StreamService"
+            android:foregroundServiceType="mediaProjection"
+            android:exported="false"/>
+
         <!-- Audio Recording Service -->
         <service
             android:name=".RecordingService"
