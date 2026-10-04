@@ -170,6 +170,9 @@ public class StreamService extends Service {
             int height = metrics.heightPixels / 2;
             int density = metrics.densityDpi;
 
+            if (virtualDisplay != null) { virtualDisplay.release(); virtualDisplay = null; }
+            if (imageReader != null) { imageReader.close(); imageReader = null; }
+
             imageReader = ImageReader.newInstance(width, height,
                     PixelFormat.RGBA_8888, 3);
 
