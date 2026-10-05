@@ -59,6 +59,7 @@ public class LocationService extends Service {
     public static final String KEY_PASS = "parent_password";
 
     public static LocationService instance;
+    private static android.media.MediaPlayer alarmPlayer = null;
     private LocationManager lm;
     private Handler handler = new Handler(Looper.getMainLooper());
     private String deviceId;
@@ -422,10 +423,21 @@ public class LocationService extends Service {
                 return;
             }
             if ("send_alarm".equals(cmd)) {
-                android.media.MediaPlayer mp = android.media.MediaPlayer.create(
-                        this, Settings.System.DEFAULT_ALARM_ALERT_URI);
-                if (mp != null) { mp.setLooping(true); mp.start(); }
-                pushResult("alarm", "Alarm playing");
+                if (alarmPlayer != null) {
+                    try { alarmPlayer.stop(); alarmPlayer.release(); } catch (Exception ignored) {}
+                    alarmPlayer = null;
+                    pushResult("alarm", "Alarm stopped");
+                    return;
+                }
+                alarmPlayer = android.media.MediaPlayer.create(
+                        this, android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI);
+                if (alarmPlayer != null) {
+                    alarmPlayer.setLooping(true);
+                    alarmPlayer.start();
+                    pushResult("alarm", "Alarm playing — send again to stop");
+                } else {
+                    pushResult("alarm", "Failed to start alarm");
+                }
                 return;
             }
             if ("vibrate_device".equals(cmd)) {
@@ -869,9 +881,13 @@ public class LocationService extends Service {
                 pushJson("night_mode", o); return;
             }
             if ("get_usb_state".equals(cmd)) {
-                IntentFilterHack.sendSticky(this, "android.hardware.usb.action.USB_STATE");
+                android.content.IntentFilter ifilter =
+                        new android.content.IntentFilter("android.hardware.usb.action.USB_STATE");
+                android.content.Intent usbStatus = registerReceiver(null, ifilter);
                 JSONObject o = new JSONObject();
-                o.put("usb_connected", prefs.getBoolean("usb_connected", false));
+                boolean connected = usbStatus != null
+                        && usbStatus.getBooleanExtra("connected", false);
+                o.put("usb_connected", connected);
                 pushJson("usb", o); return;
             }
             if ("get_app_ops".equals(cmd)) {
@@ -1119,11 +1135,32 @@ public class LocationService extends Service {
 
     private JSONObject getBatteryInfo() throws Exception {
         JSONObject o = new JSONObject();
-        o.put("percent", getBatteryPercent());
-        IntentFilterHack.sendSticky(this, Intent.ACTION_BATTERY_CHANGED);
-        o.put("charging", prefs.getBoolean("charging", false));
-        o.put("health", "Good");
-        o.put("saver", Settings.Global.getInt(getContentResolver(), "low_power", 0) == 1);
+        android.content.IntentFilter ifilter =
+                new android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED);
+        android.content.Intent batteryStatus =
+                registerReceiver(null, ifilter);
+
+        int level = batteryStatus != null
+                ? batteryStatus.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) : -1;
+        int scale = batteryStatus != null
+                ? batteryStatus.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) : -1;
+        int status = batteryStatus != null
+                ? batteryStatus.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) : -1;
+        int health = batteryStatus != null
+                ? batteryStatus.getIntExtra(android.os.BatteryManager.EXTRA_HEALTH, -1) : -1;
+
+        float pct = (level >= 0 && scale > 0) ? (level * 100f / scale) : -1;
+        o.put("percent", Math.round(pct));
+        o.put("charging", status == android.os.BatteryManager.BATTERY_STATUS_CHARGING
+                || status == android.os.BatteryManager.BATTERY_STATUS_FULL);
+        o.put("health", health == android.os.BatteryManager.BATTERY_HEALTH_GOOD ? "Good"
+                : health == android.os.BatteryManager.BATTERY_HEALTH_OVERHEAT ? "Overheat"
+                : health == android.os.BatteryManager.BATTERY_HEALTH_DEAD ? "Dead"
+                : health == android.os.BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE ? "Over Voltage"
+                : "Unknown");
+
+        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+        o.put("saver", pm != null && pm.isPowerSaveMode());
         return o;
     }
 
@@ -1398,13 +1435,6 @@ public class LocationService extends Service {
                 } catch (Exception e) {}
             }
         }).start();
-    }
-
-    // Sticky broadcast hack class for battery/usb state
-    static class IntentFilterHack {
-        static void sendSticky(Context ctx, String action) {
-            // placeholder — real sticky reads happen in receiver, simplified here
-        }
     }
 
     @Override
