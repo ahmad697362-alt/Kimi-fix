@@ -223,16 +223,15 @@ public class MainActivity extends Activity {
     }
 
     private boolean hasUsageStatsPermission() {
-        try {
-            android.app.usage.UsageStatsManager usm =
-                    (android.app.usage.UsageStatsManager) getSystemService(USAGE_STATS_SERVICE);
-            long now = System.currentTimeMillis();
-            java.util.List<android.app.usage.UsageStats> stats =
-                    usm.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_DAILY,
-                            now - 60000, now);
-            return stats != null && !stats.isEmpty();
-        } catch (Exception e) {
-            return false;
+        android.app.AppOpsManager appOps = (android.app.AppOpsManager) getSystemService(APP_OPS_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            int mode = appOps.checkOpNoThrow(
+                    android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    android.os.Process.myUid(),
+                    getPackageName()
+            );
+            return mode == android.app.AppOpsManager.MODE_ALLOWED;
         }
+        return false;
     }
 }
