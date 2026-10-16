@@ -51,6 +51,42 @@ public class FirebaseHelper {
         put(path, "null");
     }
 
+    public static void deleteAsync(final String path, final ResponseCallback callback) {
+        putAsync(path, "null", callback);
+    }
+
+    public static void putAsync(final String path, final org.json.JSONObject jsonData, final ResponseCallback callback) {
+        putAsync(path, jsonData != null ? jsonData.toString() : "null", callback);
+    }
+
+    public static void putAsync(final String path, final String jsonBody, final ResponseCallback callback) {
+        executor.execute(() -> {
+            HttpURLConnection conn = null;
+            try {
+                URL url = new URL(FIREBASE_URL + path + ".json");
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("PUT");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(10000);
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(jsonBody.getBytes("UTF-8"));
+                }
+                int responseCode = conn.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK || responseCode == HttpURLConnection.HTTP_NO_CONTENT) {
+                    if (callback != null) callback.onSuccess("Success");
+                } else {
+                    if (callback != null) callback.onError(new IOException("HTTP error: " + responseCode));
+                }
+            } catch (Exception e) {
+                if (callback != null) callback.onError(e);
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        });
+    }
+
     public static void getAsync(final String path, final ResponseCallback callback) {
         executor.execute(() -> {
             HttpURLConnection conn = null;

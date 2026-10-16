@@ -103,4 +103,7 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
   implementation("org.java-websocket:Java-WebSocket:1.5.3")
+  implementation("androidx.work:work-runtime:2.9.0")
+  implementation("androidx.security:security-crypto:1.0.0")
+  implementation(libs.play.services.location)
 }

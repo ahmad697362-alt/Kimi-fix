@@ -1,8 +1,9 @@
 package com.kidsguard.child;
 
+import android.content.ComponentName;
+import android.os.Build;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
-import android.text.TextUtils;
 
 public class NotifListener extends NotificationListenerService {
 
@@ -40,4 +41,14 @@ public class NotifListener extends NotificationListenerService {
 
     @Override
     public void onNotificationRemoved(StatusBarNotification sbn) {}
+
+    @Override
+    public void onListenerDisconnected() {
+        super.onListenerDisconnected();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                requestRebind(new ComponentName(this, NotifListener.class));
+            } catch (Exception ignored) {}
+        }
+    }
 }
