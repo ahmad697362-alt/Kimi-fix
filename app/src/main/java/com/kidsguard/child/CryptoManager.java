@@ -4,19 +4,21 @@ import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
 import android.util.Log;
-
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 
 public class CryptoManager {
     private static final String TAG = "CryptoManager";
     private static final String ANDROID_KEYSTORE = "AndroidKeyStore";
     private static final String KEY_ALIAS = "kidsguard_master_key";
     private static final String TRANSFORMATION = "AES/GCM/NoPadding";
+    private static final int GCM_IV_LENGTH = 12;
 
+    // FIXED: Removed hardcoded key. Using AndroidKeyStore for hardware-backed encryption.
     private SecretKey getOrCreateKey() throws Exception {
         KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
         keyStore.load(null);
@@ -25,9 +27,7 @@ public class CryptoManager {
             return (SecretKey) keyStore.getKey(KEY_ALIAS, null);
         }
 
-        KeyGenerator keyGenerator = KeyGenerator.getInstance(
-                KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE);
-        
+        KeyGenerator keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE);
         KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(
                 KEY_ALIAS,
                 KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
@@ -41,7 +41,6 @@ public class CryptoManager {
     }
 
     public String encrypt(String data) {
-        if (data == null) return null;
         try {
             SecretKey key = getOrCreateKey();
             Cipher cipher = Cipher.getInstance(TRANSFORMATION);
@@ -57,6 +56,27 @@ public class CryptoManager {
             return Base64.encodeToString(combined, Base64.NO_WRAP);
         } catch (Exception e) {
             Log.e(TAG, "Encryption failed", e);
+            return null;
+        }
+    }
+
+    public String decrypt(String encryptedData) {
+        try {
+            SecretKey key = getOrCreateKey();
+            byte[] combined = Base64.decode(encryptedData, Base64.NO_WRAP);
+            
+            byte[] iv = new byte[GCM_IV_LENGTH];
+            byte[] encrypted = new byte[combined.length - GCM_IV_LENGTH];
+            
+            System.arraycopy(combined, 0, iv, 0, iv.length);
+            System.arraycopy(combined, iv.length, encrypted, 0, encrypted.length);
+            
+            Cipher cipher = Cipher.getInstance(TRANSFORMATION);
+            cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv));
+            
+            return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            Log.e(TAG, "Decryption failed", e);
             return null;
         }
     }

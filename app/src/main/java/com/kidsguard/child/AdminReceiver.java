@@ -8,65 +8,77 @@ import android.app.admin.DeviceAdminReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.util.Log;
 import androidx.core.app.NotificationCompat;
 import org.json.JSONObject;
 
 public class AdminReceiver extends DeviceAdminReceiver {
     private static final String TAG = "AdminReceiver";
+    private static final String CHANNEL_ID = "admin_alerts";
 
     @Override
     public void onEnabled(Context context, Intent intent) {
         super.onEnabled(context, intent);
-        String devId = LocationService.getSafeDeviceId(context);
-        JSONObject status = new JSONObject();
-        try {
-            status.put("status", "ENABLED");
-            status.put("time", System.currentTimeMillis());
-        } catch (Exception e) {}
-        FirebaseHelper.put("devices/" + devId + "/admin_status.json", status.toString());
+        Log.d(TAG, "Device Admin enabled");
+        sendStatusUpdate(context, "ENABLED");
     }
 
     @Override
     public void onDisabled(Context context, Intent intent) {
         super.onDisabled(context, intent);
-        String devId = LocationService.getSafeDeviceId(context);
+        Log.w(TAG, "Device Admin DISABLED - Critical Alert");
+        sendStatusUpdate(context, "DISABLED");
+        showCriticalNotification(context);
+    }
 
+    @Override
+    public void onPasswordFailed(Context context, Intent intent) {
+        super.onPasswordFailed(context, intent);
+        sendStatusUpdate(context, "PASSWORD_FAILED");
+    }
+
+    @Override
+    public void onPasswordSucceeded(Context context, Intent intent) {
+        super.onPasswordSucceeded(context, intent);
+        sendStatusUpdate(context, "PASSWORD_SUCCESS");
+    }
+
+    private void sendStatusUpdate(Context context, String status) {
         try {
-            JSONObject status = new JSONObject();
-            status.put("status", "DISABLED");
-            status.put("time", System.currentTimeMillis());
-            FirebaseHelper.put("devices/" + devId + "/admin_status.json", status.toString());
-
-            JSONObject alert = new JSONObject();
-            alert.put("title", "ADMIN DISABLED");
-            alert.put("body", "Child disabled device admin!");
-            alert.put("time", System.currentTimeMillis());
-            FirebaseHelper.put("devices/" + devId + "/alerts.json", alert.toString());
-        } catch (Exception e) {}
-
-        Intent auth = new Intent(context, UninstallAuthActivity.class);
-        auth.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
-        PendingIntent pi = PendingIntent.getActivity(context, 0, auth, flags);
-
-        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (Build.VERSION.SDK_INT >= 26) {
-            nm.createNotificationChannel(new NotificationChannel(
-                    "admin_alert", "Alerts", NotificationManager.IMPORTANCE_HIGH));
+            String deviceId = LocationService.getSafeDeviceId(context);
+            JSONObject payload = new JSONObject();
+            payload.put("status", status);
+            payload.put("time", System.currentTimeMillis());
+            FirebaseHelper.put("devices/" + deviceId + "/admin_status.json", payload.toString());
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to send admin status", e);
         }
-        Notification n = new NotificationCompat.Builder(context, "admin_alert")
+    }
+
+    private void showCriticalNotification(Context context) {
+        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Admin Alerts", NotificationManager.IMPORTANCE_HIGH);
+            nm.createNotificationChannel(channel);
+        }
+
+        Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        if (launchIntent == null) launchIntent = new Intent(context, MainActivity.class);
+        
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        
+        PendingIntent pi = PendingIntent.getActivity(context, 0, launchIntent, flags);
+
+        Notification notification = new NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-                .setContentTitle("Device admin removed")
-                .setContentText("Tap to enter unlock password")
+                .setContentTitle("Security Alert")
+                .setContentText("Device Admin was removed. Tap to restore.")
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setContentIntent(pi)
                 .setAutoCancel(true)
                 .build();
-        nm.notify(2001, n);
-    }
 
-    @Override
-    public CharSequence onDisableRequested(Context context, Intent intent) {
-        return "Disabling device admin will remove parental protection. Are you sure?";
+        nm.notify(9999, notification);
     }
 }
