@@ -58,7 +58,7 @@ public class LocationService extends Service {
     public static final String KEY_ID = "device_id";
     public static final String KEY_PASS = "parent_password";
 
-    public static LocationService instance;
+    private static volatile boolean alive;
     private static volatile boolean alive;
     public static boolean isRunning() { return alive; }
     private static android.media.MediaPlayer alarmPlayer = null;
@@ -111,7 +111,7 @@ public class LocationService extends Service {
     public void onCreate() {
         super.onCreate();
         alive = true;
-        instance = this;
+        alive = true;
         acquireWakeLock();
         prefs = getSharedPreferences(PREFS, 0);
         deviceId = getSafeDeviceId(this);
@@ -1497,7 +1497,7 @@ public class LocationService extends Service {
     @Override
     public void onDestroy() {
         alive = false;
-        instance = null;
+        alive = false;
         releaseWakeLock();
         handler.removeCallbacksAndMessages(null);
         if (lm != null && locationListener != null) {
