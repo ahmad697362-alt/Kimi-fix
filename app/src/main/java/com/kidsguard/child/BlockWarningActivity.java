@@ -1,6 +1,11 @@
 package com.kidsguard.child;
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.Handler;
 public class BlockWarningActivity extends Activity {
-    @Override protected void onCreate(Bundle s) { super.onCreate(s); finish(); }
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        new Handler().postDelayed(this::finish, 3000);
+    }
 }
