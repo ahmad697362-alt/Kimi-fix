@@ -8,7 +8,12 @@ public class LocalDatabase extends SQLiteOpenHelper {
         if (instance == null) instance = new LocalDatabase(ctx.getApplicationContext());
         return instance;
     }
-    private LocalDatabase(Context c) { super(c, "kidsguard.db", null, 1); }
+    private LocalDatabase(Context c) { super(c, "kidsguard.db", null, 2); }
+    @Override
+    public void onConfigure(SQLiteDatabase db) {
+        super.onConfigure(db);
+        db.enableWriteAheadLogging();
+    }
     @Override public void onCreate(SQLiteDatabase db) { db.execSQL("CREATE TABLE IF NOT EXISTS logs (id INTEGER PRIMARY KEY, data TEXT)"); }
     @Override public void onUpgrade(SQLiteDatabase db, int o, int n) { db.execSQL("DROP TABLE IF EXISTS logs"); onCreate(db); }
 }

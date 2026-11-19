@@ -10,7 +10,10 @@ public class HeartbeatScheduler {
         int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
         PendingIntent pi = PendingIntent.getBroadcast(ctx, 0, i, flags);
         long t = System.currentTimeMillis() + 60000;
-        if (Build.VERSION.SDK_INT >= 23) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, t, pi);
-        else am.setExact(AlarmManager.RTC_WAKEUP, t, pi);
+        if (Build.VERSION.SDK_INT >= 23) {
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, t, pi);
+        } else {
+            am.set(AlarmManager.RTC_WAKEUP, t, pi);
+        }
     }
 }

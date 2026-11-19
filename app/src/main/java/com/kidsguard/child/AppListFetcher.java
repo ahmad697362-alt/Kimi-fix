@@ -1,25 +1,21 @@
 package com.kidsguard.child;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.os.Build;
-import android.util.Log;
 import java.util.ArrayList;
 import java.util.List;
 public class AppListFetcher {
-    private final Context context;
-    public AppListFetcher(Context context) { this.context = context.getApplicationContext(); }
-    public List<PackageInfo> getInstalledApps() {
-        PackageManager pm = context.getPackageManager();
-        List<PackageInfo> all = new ArrayList<>();
-        try {
-            int flags = Build.VERSION.SDK_INT < Build.VERSION_CODES.R ? PackageManager.MATCH_ALL : 0;
-            List<PackageInfo> base = pm.getInstalledPackages(flags);
-            for (PackageInfo info : base) {
-                try { all.add(pm.getPackageInfo(info.packageName, PackageManager.GET_ACTIVITIES | PackageManager.GET_SERVICES)); }
-                catch (PackageManager.NameNotFoundException e) { all.add(info); }
+    public List<PackageInfo> getUserApps(Context ctx) {
+        List<PackageInfo> apps = new ArrayList<>();
+        PackageManager pm = ctx.getPackageManager();
+        List<PackageInfo> packages = pm.getInstalledPackages(0);
+        for (PackageInfo p : packages) {
+            if ((p.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 0 ||
+                (p.applicationInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0) {
+                apps.add(p);
             }
-        } catch (Exception e) { Log.e("AppList", "Fetch failed", e); all = pm.getInstalledPackages(0); }
-        return all;
+        }
+        return apps;
     }
 }
