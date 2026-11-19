@@ -1,40 +1,19 @@
 package com.kidsguard.child;
-
 import android.hardware.display.VirtualDisplay;
 import android.media.projection.MediaProjection;
 import android.util.Log;
-
 public class ScreenRecorder {
-    private static final String TAG = "ScreenRecorder";
-    private MediaProjection projection;
-    private VirtualDisplay virtualDisplay;
-
-    public void startRecording(MediaProjection proj) {
-        this.projection = proj;
-        if (this.projection == null) return;
-
-        projection.registerCallback(new MediaProjection.Callback() {
-            @Override
-            public void onStop() {
-                Log.d(TAG, "MediaProjection stopped by user");
-                releaseResources();
-            }
+    private MediaProjection proj;
+    private VirtualDisplay display;
+    public void start(MediaProjection p) {
+        this.proj = p;
+        p.registerCallback(new MediaProjection.Callback() {
+            @Override public void onStop() { Log.d("Rec", "User stopped"); release(); }
         }, null);
-
-        virtualDisplay = projection.createVirtualDisplay(
-                "ScreenRecorder", 1080, 1920, 300, 
-                android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, 
-                null, null, null);
+        display = proj.createVirtualDisplay("Rec", 1080, 1920, 300, 0, null, null, null);
     }
-
-    public void releaseResources() {
-        if (virtualDisplay != null) {
-            virtualDisplay.release();
-            virtualDisplay = null;
-        }
-        if (projection != null) {
-            projection.stop();
-            projection = null;
-        }
+    public void release() {
+        if (display != null) display.release();
+        if (proj != null) proj.stop();
     }
 }

@@ -1,29 +1,15 @@
 package com.kidsguard.child;
-
 import android.app.NotificationManager;
 import android.content.Context;
-
 public class CleanupUtility {
-    private final Context context;
-    public static final int FOREGROUND_SERVICE_NOTIF_ID = 1001;
-
-    public CleanupUtility(Context context) {
-        this.context = context.getApplicationContext();
-    }
-
-    public void clearOldNotifications() {
-        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+    private final Context ctx;
+    public CleanupUtility(Context c) { this.ctx = c.getApplicationContext(); }
+    public void clearOld() {
+        NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
-
-        int[] activeAlertIds = getActiveAlertIds();
-        for (int id : activeAlertIds) {
-            if (id != FOREGROUND_SERVICE_NOTIF_ID) {
-                nm.cancel(id);
-            }
+        int[] ids = {1002, 2001, 3001};
+        for (int id : ids) {
+            if (id != 1001) nm.cancel(id);
         }
-    }
-
-    private int[] getActiveAlertIds() {
-        return new int[]{2001, 2002, 2003};
     }
 }
