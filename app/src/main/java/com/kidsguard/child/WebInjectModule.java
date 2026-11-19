@@ -1,27 +1,22 @@
 package com.kidsguard.child;
-
 import android.os.Build;
 import android.webkit.WebView;
-import android.util.Log;
-
+import android.webkit.WebViewClient;
 public class WebInjectModule {
-    private static final String TAG = "WebInject";
-
-    public void injectScript(WebView webView, String script) {
-        if (webView == null) return;
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            if (webView.isAttachedToWindow() && webView.getHandler() != null) {
-                try {
-                    webView.evaluateJavascript(script, value -> {
-                        Log.d(TAG, "JS evaluation completed: " + value);
-                    });
-                } catch (Exception e) {
-                    Log.e(TAG, "JS injection failed (WebView likely destroyed)", e);
-                }
-            } else {
-                Log.w(TAG, "WebView not attached, skipping injection");
-            }
+    public void initWebView(WebView webView) {
+        webView.getSettings().setJavaScriptEnabled(true);
+        webView.getSettings().setAllowFileAccess(false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            webView.getSettings().setAllowUniversalAccessFromFileURLs(false);
+            webView.getSettings().setAllowFileAccessFromFileURLs(false);
         }
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                if (url != null && url.contains("kidsguard-internal")) {
+                    view.addJavascriptInterface(new Object(), "AndroidBridge");
+                }
+            }
+        });
     }
 }
