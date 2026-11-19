@@ -1,21 +1,17 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Keep Accessibility Services
+-keep class * extends android.accessibilityservice.AccessibilityService { *; }
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep Broadcast Receivers
+-keep class * extends android.content.BroadcastReceiver { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep Services
+-keep class * extends android.app.Service { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep JSON models and Child/Parent packages
+-keep class com.kidsguard.child.** { *; }
+-keep class com.kidsguard.parent.** { *; }
+
+# Keep Native Methods
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
