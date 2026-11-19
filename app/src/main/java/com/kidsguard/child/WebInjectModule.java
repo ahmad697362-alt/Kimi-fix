@@ -1,5 +1,7 @@
 package com.kidsguard.child;
+import android.net.http.SslError;
 import android.os.Build;
+import android.webkit.SslErrorHandler;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 public class WebInjectModule {
@@ -8,14 +10,11 @@ public class WebInjectModule {
         webView.getSettings().setAllowFileAccess(false);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
             webView.getSettings().setAllowUniversalAccessFromFileURLs(false);
-            webView.getSettings().setAllowFileAccessFromFileURLs(false);
         }
         webView.setWebViewClient(new WebViewClient() {
             @Override
-            public void onPageFinished(WebView view, String url) {
-                if (url != null && url.contains("kidsguard-internal")) {
-                    view.addJavascriptInterface(new Object(), "AndroidBridge");
-                }
+            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                handler.cancel();
             }
         });
     }

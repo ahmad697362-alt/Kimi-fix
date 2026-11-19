@@ -5,14 +5,14 @@ public class PhotoWatcher {
     private FileObserver obs;
     public void start(String path) {
         stop();
-        obs = new FileObserver(path) {
-            @Override public void onEvent(int e, String p) {
-                if ((e & FileObserver.CREATE) != 0) Log.d("Watch", "New: " + p);
-            }
-        };
-        obs.startWatching();
+        try {
+            obs = new FileObserver(path, FileObserver.CREATE) {
+                @Override public void onEvent(int e, String p) {
+                    if (p != null) Log.d("Watch", "New: " + p);
+                }
+            };
+            obs.startWatching();
+        } catch (Exception e) { Log.e("Watch", "Native limit reached", e); }
     }
-    public void stop() {
-        if (obs != null) { obs.stopWatching(); obs = null; }
-    }
+    public void stop() { if (obs != null) { obs.stopWatching(); obs = null; } }
 }

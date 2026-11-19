@@ -10,7 +10,9 @@ public class AlarmScheduler {
         AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
         if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
-            Log.w("Alarm", "Exact alarms denied"); return;
+            Log.w("Alarm", "Exact alarms denied, using inexact");
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 60000, PendingIntent.getBroadcast(ctx, 0, i, PendingIntent.FLAG_IMMUTABLE));
+            return;
         }
         int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
         am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 60000, PendingIntent.getBroadcast(ctx, 0, i, flags));
