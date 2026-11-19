@@ -9,6 +9,7 @@ import android.hardware.display.VirtualDisplay;
 import android.media.projection.MediaProjection;
 import android.os.Build;
 import android.os.IBinder;
+import android.util.Log;
 import androidx.core.app.NotificationCompat;
 public class ScreenStreamService extends Service {
     private MediaProjection proj;
@@ -20,9 +21,7 @@ public class ScreenStreamService extends Service {
             ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(ch);
         }
         Notification n = new NotificationCompat.Builder(this, "screen").build();
-        if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(1002, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
-        } else if (Build.VERSION.SDK_INT >= 29) {
+        if (Build.VERSION.SDK_INT >= 29) {
             startForeground(1002, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
         } else { startForeground(1002, n); }
         return START_STICKY;
@@ -30,7 +29,10 @@ public class ScreenStreamService extends Service {
     public void setProjection(MediaProjection p) {
         this.proj = p;
         p.registerCallback(new MediaProjection.Callback() {
-            @Override public void onStop() { stopSelf(); }
+            @Override public void onStop() {
+                Log.d("Screen", "User revoked permission");
+                stopSelf();
+            }
         }, null);
     }
     @Override public void onDestroy() {

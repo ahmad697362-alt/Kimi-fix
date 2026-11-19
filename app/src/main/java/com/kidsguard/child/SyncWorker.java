@@ -1,23 +1,24 @@
 package com.kidsguard.child;
 import android.content.Context;
 import android.util.Log;
+import androidx.work.Constraints;
+import androidx.work.NetworkType;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 public class SyncWorker extends Worker {
-    public SyncWorker(Context context, WorkerParameters params) {
-        super(context, params);
+    public SyncWorker(Context context, WorkerParameters params) { super(context, params); }
+    public static Constraints getConstraints() {
+        return new Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .setRequiresBatteryNotLow(true)
+                .build();
     }
     @Override
     public Result doWork() {
         return doSync() ? Result.success() : Result.retry();
     }
     private boolean doSync() {
-        try {
-            Log.d("SyncWorker", "Syncing data...");
-            return true;
-        } catch (Exception e) {
-            Log.e("SyncWorker", "Sync failed", e);
-            return false;
-        }
+        try { Log.d("SyncWorker", "Syncing data..."); return true; }
+        catch (Exception e) { Log.e("SyncWorker", "Sync failed", e); return false; }
     }
 }
