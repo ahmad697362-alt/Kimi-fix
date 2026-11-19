@@ -1,45 +1,17 @@
 package com.kidsguard.child;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
-
 public class NetworkClient {
-
-    public String sendRequest(String urlStr) throws IOException {
-        URL url = new URL(urlStr);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+    public String get(String urlStr) throws IOException {
+        HttpURLConnection c = (HttpURLConnection) new URL(urlStr).openConnection();
         try {
-            int responseCode = conn.getResponseCode();
-
-            InputStream inputStream;
-            if (responseCode >= 200 && responseCode < 300) {
-                inputStream = conn.getInputStream();
-            } else {
-                inputStream = conn.getErrorStream();
-                if (inputStream == null) {
-                    throw new IOException("HTTP Error: " + responseCode + " (No error body)");
-                }
-            }
-
-            StringBuilder result = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    result.append(line);
-                }
-            }
-
-            if (responseCode >= 300) {
-                throw new IOException("HTTP Error " + responseCode + ": " + result.toString());
-            }
-
-            return result.toString();
-        } finally {
-            conn.disconnect();
-        }
+            InputStream is = c.getResponseCode() >= 400 ? c.getErrorStream() : c.getInputStream();
+            if (is == null) return null;
+            BufferedReader r = new BufferedReader(new InputStreamReader(is));
+            StringBuilder sb = new StringBuilder(); String l;
+            while ((l = r.readLine()) != null) sb.append(l);
+            return sb.toString();
+        } finally { c.disconnect(); }
     }
 }
