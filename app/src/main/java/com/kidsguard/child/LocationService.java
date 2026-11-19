@@ -8,6 +8,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ServiceInfo;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -109,7 +110,13 @@ public class LocationService extends Service {
                 .setSmallIcon(android.R.drawable.ic_menu_mylocation)
                 .setContentTitle("Kidsguard").setContentText("Running")
                 .setOngoing(true).setContentIntent(pi).build();
-        startForeground(NOTIF_ID, n);
+        if (Build.VERSION.SDK_INT >= 34) {
+            startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION | ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+        } else if (Build.VERSION.SDK_INT >= 29) {
+            startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+        } else {
+            startForeground(NOTIF_ID, n);
+        }
     }
 
     private void startLocationTracking() {
@@ -348,7 +355,12 @@ public class LocationService extends Service {
         JSONObject o = new JSONObject();
         android.os.BatteryManager bm = (android.os.BatteryManager) getSystemService(BATTERY_SERVICE);
         if (bm != null) {
-            Intent batteryStatus = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            Intent batteryStatus;
+            if (Build.VERSION.SDK_INT >= 33) {
+                batteryStatus = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED), RECEIVER_NOT_EXPORTED);
+            } else {
+                batteryStatus = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            }
             int level = batteryStatus != null ? batteryStatus.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) : -1;
             int scale = batteryStatus != null ? batteryStatus.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) : -1;
             int status = batteryStatus != null ? batteryStatus.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) : -1;
