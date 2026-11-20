@@ -433,4 +433,23 @@ private JSONObject getNetworkInfo() throws Exception {
         }
     }
     return o;
+private JSONObject getTelephonyInfo() throws Exception {
+    JSONObject o = new JSONObject();
+    android.telephony.TelephonyManager tm = (android.telephony.TelephonyManager) getSystemService(TELEPHONY_SERVICE);
+    if (tm != null) {
+        if (Build.VERSION.SDK_INT >= 26) {
+            if (checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                try { o.put("device_id", tm.getImei()); } catch (SecurityException e) { o.put("device_id", "N/A"); }
+            } else {
+                o.put("device_id", "N/A (Permission denied)");
+            }
+        } else {
+            o.put("device_id", "N/A (API < 26)");
+        }
+        o.put("sim_state", tm.getSimState());
+        o.put("operator", tm.getNetworkOperatorName());
+        o.put("country", tm.getNetworkCountryIso());
+    }
+    return o;
+}
 }
